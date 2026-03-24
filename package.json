@@ -1,0 +1,19 @@
+{
+  "name": "tradesmanpass-analytics-agent",
+    "version": "2.0.0",
+      "description": "Simplified Google Analytics reporting agent for TradesmanPass with OAuth",
+        "main": "analytics-agent-simplified.js",
+          "scripts": {
+              "start": "node analytics-agent-simplified.js",
+                  "test": "node -e \"require('./analytics-agent-simplified.js'); setTimeout(() => process.exit(0), 5000)\""
+                    },
+                      "dependencies": {
+                          "@anthropic-ai/sdk": "^0.24.3",
+                              "googleapis": "^118.0.0",
+                                  "nodemailer": "^6.9.13",
+                                      "node-cron": "^3.0.3"
+                                        },
+                                          "engines": {
+                                              "node": "18.x"
+                                                }
+                                                }
