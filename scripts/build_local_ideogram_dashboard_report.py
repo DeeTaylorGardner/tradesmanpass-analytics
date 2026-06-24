@@ -133,7 +133,7 @@ class ArchDiagram(Flowable):
         # Tier 3 backend
         t3y=H-3.95*inch
         tier(t3y,1.0*inch,PANEL2,GREEN,"TIER 3 · BACKEND ENGINE  —  ComfyUI (local, day-0 Ideogram-4 support)")
-        for i,(lab,sub,col) in enumerate([("Ideogram-4","NF4 / GGUF Q4_K",GREEN),("+ Realism LoRA","native IG-4 adapter",WARM),("Upscaler","4x / SUPIR (tiled)",BLUE),("Detailer","ADetailer face/hands",ROSE)]):
+        for i,(lab,sub,col) in enumerate([("Ideogram-4","NF4 / GGUF Q4_K",GREEN),("+ Realism LoRA","native IG-4 adapter",WARM),("Upscaler","ESRGAN SR (non-gen)",BLUE),("IG-4 Detailer","inpaint face/hands",ROSE)]):
             _box(c,0.28*inch+i*1.58*inch,t3y+0.22*inch,1.42*inch,0.5*inch,col,col,lab,sub,fs=8,sub_fs=6.3)
         # arrows between tiers
         _arrow(c,W/2,H-0.42*inch,W/2,t1y+1.05*inch,color=SOFT)
@@ -209,8 +209,8 @@ class PipelineDiagram(Flowable):
         stages=[("1 · JSON+bbox","prompt compiled\nfrom canvas",ACCENT2),
                 ("2 · IDEOGRAM-4","generate 1K\n12-step turbo\n+ realism LoRA",GREEN),
                 ("3 · REFINE","img2img\ndenoise ~0.25",WARM),
-                ("4 · UPSCALE","tiled 4x /\nSUPIR → 2K",BLUE),
-                ("5 · DETAIL","ADetailer\nface · eyes · hands",ROSE)]
+                ("4 · UPSCALE","ESRGAN SR\n(non-gen) → 2K",BLUE),
+                ("5 · IG-4 DETAIL","inpaint\nface · eyes · hands",ROSE)]
         xs=[]
         for i,(lab,sub,col) in enumerate(stages):
             x=gap*0+i*(bw+gap)
@@ -287,9 +287,9 @@ S.append(bullets([
     "CPU-offloaded. Expect ~20–70&nbsp;s at 1K, ~60&nbsp;s at 2K.",
     "<b>Engine: ComfyUI as a local backend</b> (day-0 Ideogram-4 support) behind a custom premium UI "
     "— don't reinvent diffusion; reinvent the experience.",
-    "<b>Realism path.</b> Ideogram&nbsp;4 supports its own LoRAs, but Civitai realism LoRAs (Flux/SDXL) "
-    "<b>do not load on it</b> — use Ideogram-4-native LoRAs, or route a refine/detail pass through a "
-    "second engine. Pair with upscalers + face/hand detailers.",
+    "<b>Realism path (single-model).</b> No second engine. Realism comes from a <b>native Ideogram-4 realism "
+    "LoRA</b> (the only kind that loads), <b>photo-style JSON prompt craft</b>, and IG-4's own refine/inpaint "
+    "passes — plus a non-generative upscaler. Popular Flux/SDXL Civitai LoRAs can't load on IG-4 and are excluded.",
     "<b>What local fixes:</b> credits, queues, privacy, the censorship gate, and — via the visual editor "
     "— the JSON/bbox pain. What it can't fix: the non-commercial license and the model's photoreal ceiling.",
 ]))
@@ -300,7 +300,7 @@ S.append(htable(
     [["Run Ideogram&nbsp;4 locally on a 4090?","<b>Yes</b> — 4-bit only; offload the text encoder; batch size 1 at 2K."],
      ["Best checkpoint?","<b>NF4</b> for compatibility; <b>GGUF Q4_K</b> for better text fidelity at the same VRAM."],
      ["Fix JSON/bbox pain?","<b>Yes</b> — a visual canvas that emits correct <font face='Courier'>[y,x,y,x]</font> JSON."],
-     ["Hyper-realism?","<b>Partly</b> — IG-4 LoRA + refine/upscale/detail chain; may borrow a Flux/SDXL refiner."],
+     ["Hyper-realism?","<b>Partly</b> — IG-4-native realism LoRA + photo-style JSON + IG-4 refine/inpaint. No second model."],
      ["Ship commercially on open weights?","<b>No</b> — non-commercial license; needs paid tier."]],
     [2.3*inch,4.3*inch], head_bg=ACCENT)
 )
@@ -438,59 +438,69 @@ S.append(panel([Paragraph("CHECKPOINT PICK", LABEL),
 S.append(PageBreak())
 
 # 7. Hyper-realism pipeline
-S.append(Paragraph("7 · The hyper-realism pipeline", H2))
-S.append(Paragraph("Ideogram&nbsp;4 stays the generator; realism is layered on with a LoRA plus a standard "
-                   "local refine/upscale/detail chain — the single biggest portrait-realism win is auto face/hand "
-                   "detailing before upscaling.", BODY))
+S.append(Paragraph("7 · The hyper-realism pipeline — Ideogram&nbsp;4 only", H2))
+S.append(Paragraph("Per your constraint, <b>every generative step is Ideogram&nbsp;4</b> — no Flux, no SDXL, no "
+                   "second model. Realism comes from three IG-4-native levers (a native realism LoRA, photo-style "
+                   "JSON prompt craft, and IG-4's own img2img/inpaint passes) plus one non-generative helper "
+                   "(a plain super-resolution upscaler that only adds pixels, not style).", BODY))
 S.append(PipelineDiagram())
-S.append(Paragraph("Fig.&nbsp;4 — Generate small with a realism LoRA, refine at low denoise, tiled-upscale to 2K, "
-                   "then auto-detail faces/eyes/hands. (Time grows super-linearly with pixels, so small→upscale "
-                   "beats native 2K.)", CAP))
-S.append(panel([Paragraph("THE LoRA COMPATIBILITY CATCH", ParagraphStyle("w",parent=LABEL,textColor=WARM)),
-    Paragraph("LoRAs are architecture-specific. The Civitai realism LoRAs everyone knows are trained on "
-              "<b>Flux / SDXL / Pony / Z-Image</b> — <b>none load on Ideogram&nbsp;4's transformer.</b> Two real "
-              "paths: <b>(a)</b> use/train <b>Ideogram-4-native LoRAs</b> (fal.ai V4 trainer or ai-toolkit; "
-              "early HF collections exist), or <b>(b)</b> keep IG-4 for layout+text, then route a low-denoise "
-              "<b>refine pass through Flux/SDXL</b> where the realism LoRA ecosystem lives.", PB)],
+S.append(Paragraph("Fig.&nbsp;4 — A single-model chain: IG-4 generates with a native realism LoRA, IG-4 refines "
+                   "at low denoise, a non-generative upscaler enlarges to 2K, then IG-4 re-renders face/hands by "
+                   "inpaint. (Time grows super-linearly with pixels, so small→upscale beats native 2K.)", CAP))
+S.append(panel([Paragraph("STAYING SINGLE-MODEL (by design)", ParagraphStyle("w",parent=LABEL,textColor=WARM)),
+    Paragraph("The only non-IG-4 pieces are a <b>super-resolution upscaler</b> (e.g. an ESRGAN net — pure "
+              "math, generates no new content/style) and a tiny <b>face/hand detector</b> that merely <i>selects</i> "
+              "the region Ideogram&nbsp;4 then re-renders. The popular Civitai realism LoRAs are trained on "
+              "Flux / SDXL / Pony / Z-Image and <b>cannot load on Ideogram&nbsp;4's transformer</b> — they are "
+              "intentionally excluded. If you want a fully pure run, replace the upscaler with IG-4 <b>tiled "
+              "img2img</b> upscaling so 100% of pixels come from Ideogram&nbsp;4.", PB)],
     bg=WARNBG, border=WARM))
 S.append(PageBreak())
 
-# 8. Realism LoRA research
-S.append(Paragraph("8 · Realism LoRA &amp; add-on research", H2))
-S.append(Paragraph("Your 'Realism v5' must-have didn't map to a Civitai creator named 'red' — flagging it as "
-                   "<b>to-confirm</b>. Closest matches, then a curated stack (grouped by base model, since they "
-                   "don't cross over).", BODY))
-S.append(Paragraph("Your 'Realism v5' — best candidates (confirm the link)", H3))
+# 8. Making Ideogram 4 itself photoreal
+S.append(Paragraph("8 · Making Ideogram&nbsp;4 <i>itself</i> photoreal", H2))
+S.append(Paragraph("With one model, realism is won on three IG-4-native fronts. The biggest lever you fully "
+                   "control — and it costs nothing extra — is <b>prompt craft</b>.", BODY))
+
+S.append(Paragraph("A · Photo-style JSON prompt craft (zero extra models)", H3))
 S.append(bullets([
-    "<b>RealVisXL V5.0</b> (SDXL) — the dominant 'V5' realism model; it's a <i>checkpoint</i>, not a LoRA. Most "
-    "people saying 'Realism v5' mean this.",
-    "<b>Realistic Snapshot (Z-Image-Turbo) – v5 'Real Life'</b> by MonkeyForever — the only headline 'v5' realism "
-    "<i>LoRA</i> found by that name.",
-    "<b>UltraRealistic LoRA Project v2</b> / <b>Improved Amateur Snapshot</b> (Flux) — top Flux realism LoRAs if "
-    "you're on a Flux refiner.",
+    "Use <font face='Courier'>style_description.photo</font> (never <font face='Courier'>art_style</font>) and "
+    "describe a real camera: <i>“shot on 85mm f/1.4, shallow depth of field, Kodak Portra grain.”</i>",
+    "Specify <b>physical lighting</b> (softbox, golden hour, window light) and <b>skin/texture</b> words: pores, "
+    "fine lines, stray hairs, subsurface scattering.",
+    "Add <b>imperfection</b> cues — candid framing, slight motion, asymmetry — and <b>avoid</b> “perfect / "
+    "flawless / hyper-detailed,” which push the plastic AI look.",
 ]))
-S.append(Paragraph("Curated realism stack (grouped by base model)", H3))
-S.append(htable(["Resource","Base","Improves","Weight"],
-    [["Improved Amateur Snapshot (AI_Characters)","Flux","Phone-photo realism, natural light","0.7–1.0"],
-     ["UltraRealistic LoRA Project v2","Flux","Overall realism, anatomy","0.6–0.9"],
-     ["Flux Skin Texture v2 / Skin Detailer DoRA","Flux","Pores, anti-plastic skin","0.4–0.8"],
-     ["RealVisXL V5.0 (checkpoint)","SDXL","Photoreal base model","—"],
-     ["Detail Tweaker XL","SDXL","Universal detail slider","1.0–1.5"],
-     ["Skin Realism (Acne/Imperfections)","SDXL","Real pores, blemishes","0.4–0.8"],
-     ["Realistic Snapshot v5 (MonkeyForever)","Z-Image","'Real life' candid texture","0.6–0.9"],
-     ["Ideogram-4 native LoRAs (fal.ai / HF)","Ideogram-4","The only ones that load on IG-4","~0.6"]],
-    [2.55*inch,0.95*inch,2.35*inch,0.75*inch], head_bg=ACCENT)
-)
-S.append(Spacer(1,5))
-S.append(Paragraph("Non-LoRA realism boosters", H3))
+
+S.append(Paragraph("B · A native Ideogram-4 realism LoRA (the only kind that loads)", H3))
 S.append(bullets([
-    "<b>Detailers:</b> ADetailer / FaceDetailer (Impact Pack) — auto-inpaint face → eyes → hands. Biggest single "
-    "portrait win.",
-    "<b>Upscalers:</b> 4x-UltraSharp (fast) or SUPIR (best quality, use FP8 UNet + tiled VAE for 24&nbsp;GB); "
-    "ControlNet Tile for detail injection.",
-    "<b>Settings:</b> stack 2–3 realism LoRAs at 0.4–0.8 each (over-stacking burns); add a film-grain/amateur LoRA "
-    "last at low weight to break the 'too clean' look.",
+    "Source from the early IG-4 LoRA collections (e.g. <font face='Courier'>DeverStyle/Ideogram-4.0-Loras</font> "
+    "on HuggingFace) <b>or train your own</b> — the reliable path to a specific look.",
+    "<b>Training:</b> use <b>ai-toolkit</b> (kohya_ss doesn't support IG-4 yet) or the hosted <b>fal.ai V4 "
+    "trainer</b>; rank 16–64, 20–100 images, <b>captioned in the structured-JSON format</b>. Feasible on ~12&nbsp;GB, "
+    "so your 4090 trains comfortably. Apply at ~0.6 strength.",
 ]))
+S.append(panel([Paragraph("ON YOUR “REALISM v5”", LABEL),
+    Paragraph("It won't load unless it is specifically an <b>Ideogram-4</b> LoRA. RealVisXL&nbsp;V5.0 (SDXL), the "
+              "Z-Image “Realistic Snapshot v5,” and the Flux realism LoRAs are all incompatible with IG-4. To get "
+              "that exact look on a single-model IG-4 setup, <b>train an IG-4 realism LoRA on a dataset in that "
+              "style</b> (or find an IG-4-native port). Send me the link when you have it and I'll confirm.", PB)],
+    bg=PANEL3, border=ACCENT2))
+
+S.append(Paragraph("C · IG-4 refine &amp; detail passes (within the same model)", H3))
+S.append(bullets([
+    "<b>Refine:</b> a low-denoise (~0.2–0.35) IG-4 img2img pass over the first render adds micro-texture without "
+    "changing composition.",
+    "<b>Detail:</b> detect the face/eyes/hands, then have <b>IG-4 inpaint</b> just that crop at higher detail — "
+    "the single biggest portrait-realism win.",
+    "<b>Caveat:</b> IG-4's open pipeline img2img/inpaint exposure is only <i>partly</i> confirmed locally "
+    "(editable/inpaint features were described as a follow-up release). If local IG-4 inpaint is limited today, "
+    "these passes wait on that capability — we do <b>not</b> substitute another model.",
+]))
+S.append(Paragraph("D · Upscaling (non-generative)", H3))
+S.append(Paragraph("A plain ESRGAN super-resolution model (e.g. 4x-UltraSharp) only raises resolution — it adds no "
+                   "model style, so it stays true to a single-model philosophy. Use tiled decode to fit 24&nbsp;GB. "
+                   "For a 100%-IG-4 run, use IG-4 tiled img2img upscaling instead.", BODY))
 S.append(PageBreak())
 
 # 9. Performance tuning
@@ -538,8 +548,9 @@ S.append(panel([Paragraph("BOTTOM LINE", LABEL),
     Paragraph("The fastest credible build is <b>ComfyUI (engine) + a Tauri/React/Konva front-end</b> whose star is "
               "the <b>visual bbox-to-JSON editor</b>. That single feature neutralizes Ideogram&nbsp;4's four loudest "
               "complaints, and self-hosting removes credits, queues, and the censorship gate. Mind the "
-              "non-commercial license and the photoreal ceiling — plan a Flux/SDXL refiner if IG-4-native realism "
-              "LoRAs fall short.", PB)], bg=PANEL3, border=ACCENT2))
+              "non-commercial license and IG-4's photoreal ceiling — push realism with a native IG-4 LoRA, "
+              "photo-style JSON prompt craft, and IG-4's own refine/inpaint passes; no second model.", PB)],
+              bg=PANEL3, border=ACCENT2))
 S.append(PageBreak())
 
 # Sources
@@ -562,13 +573,13 @@ S.append(bullets([
     "Local UI landscape: ComfyUI / InvokeAI (Konva canvas, regional guidance) / Krita AI Diffusion / SwarmUI / "
     "Fooocus / Forge. Tauri-vs-Electron &amp; Konva-vs-Fabric write-ups.",
 ], style=SMALL))
-S.append(Paragraph("Realism", H3))
+S.append(Paragraph("Realism (Ideogram-4 native)", H3))
 S.append(bullets([
-    "Civitai: RealVisXL V5.0 · Realistic Snapshot Z-Image v5 (MonkeyForever, #2268008) · UltraRealistic LoRA "
-    "Project (#796382) · Improved Amateur Snapshot (#970862) · Detail Tweaker XL (#122359) · Skin/Eye/Hand "
-    "detailer LoRAs.",
-    "Ideogram-4 LoRA: fal.ai V4 trainer · <font face='Courier'>DeverStyle/Ideogram-4.0-Loras</font> (HF) · "
-    "ai-toolkit training guide. SUPIR &amp; ADetailer realism add-ons.",
+    "IG-4 LoRA: hosted <b>fal.ai V4 trainer</b> · community collection <font face='Courier'>DeverStyle/"
+    "Ideogram-4.0-Loras</font> (HF) · <b>ai-toolkit</b> local training guide (~12&nbsp;GB).",
+    "IG-4 prompt craft &amp; structured-JSON captioning: <font face='Courier'>ideogram-oss/ideogram4</font> "
+    "docs/prompting.md · ImagineArt JSON prompt guide · 'fix plastic skin in ComfyUI' write-up. ESRGAN "
+    "super-resolution (e.g. 4x-UltraSharp) as a non-generative upscaler.",
 ], style=SMALL))
 S.append(Spacer(1,8))
 S.append(panel([Paragraph("RELIABILITY NOTE", LABEL),
